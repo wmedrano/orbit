@@ -1,0 +1,16 @@
+#+TITLE: Orbit
+
+* Architecture
+:PROPERTIES:
+:CUSTOM_ID: Architecture-lkugk010s7k0
+:END:
+
+** Dependencies
+:PROPERTIES:
+:CUSTOM_ID: ArchitectureDependencies-enwgk010s7k0
+:END:
+
+#+BEGIN_SRC shell
+  # Web dependencies.
+  pip install quart grequests
+#+END_SRC
