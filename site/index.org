@@ -1,16 +1,56 @@
 #+TITLE: Orbit
 
-* Architecture
+* Dependencies
 :PROPERTIES:
-:CUSTOM_ID: Architecture-lkugk010s7k0
-:END:
-
-** Dependencies
-:PROPERTIES:
-:CUSTOM_ID: ArchitectureDependencies-enwgk010s7k0
+:CUSTOM_ID: Dependencies-8z0lq561t7k0
 :END:
 
 #+BEGIN_SRC shell
-  # Web dependencies.
-  pip install quart grequests
+  # Web server dependencies.
+  pip install jinja2 quart
+
+  # Web scraper dependencies.
+  pip install beautifulsoup4 grequests dataclasses-json
+
+  # ML
+  pip install numpy
+
+  # Database dependencies.
+  pip install redis[hiredis]
 #+END_SRC
+
+* Architecture
+:PROPERTIES:
+:CUSTOM_ID: Architecture-0c2lq561t7k0
+:END:
+
+#+BEGIN_SRC dot :file architecture.png
+  digraph {
+    node[shape=record];
+    paper_pete -> index -> orbit -> user;
+
+    paper_pete[label="Paper Pete\nsrc/paper_pete/main.py"];
+    index[label="Index\n(Redis)", shape=cylinder];
+    orbit[label="Orbit\nsrc/main.py"];
+    user[label="user"];
+  }
+#+END_SRC
+
+#+RESULTS:
+[[file:architecture.png]]
+
+- Paper Pete populates Index regularly.
+- Orbit hosts the frontent. It serves results by utilizing the index.
+
+** Index
+:PROPERTIES:
+:CUSTOM_ID: ArchitectureIndex-8ujah961t7k0
+:END:
+
+The Index is a key/value store hosted on Redis. The following scheme
+is used:
+
+- ~url:<url> -> <id>~ - Maps a URL to its document id.
+- ~e-v1:<id> -> <embedding vector>~ - Maps a document id to its
+  embedding. The embedding is a 384 dimensional vector generated using
+  the [[https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2][all-MiniLM-L6-v2 model]].
