@@ -1,7 +1,7 @@
 import numpy as np
 import redis
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from typing import Optional
 
@@ -11,6 +11,7 @@ class Document:
     url: str
     title: str = ''
     date: str = ''
+    terms: list[str] = field(default_factory = lambda: [])
 
     def title_has_term(self, term: str) -> bool:
         return term in title
@@ -65,16 +66,14 @@ class DocumentIndex:
         return self.redis.keys("url:*")
 
     def url_to_document(self, url: str|bytes) -> Optional[Document]:
-        data = self.redis.get(url)
+        data = self.redis.get(to_url_key(url))
         if data is None:
             return None
         return Document.from_json(data)
 
     def delete_url(self, url: str|bytes):
         k = url
-        if isinstance(url, str):
-            k = f'url:{url}'
-        self.redis.delete(k)
+        self.redis.delete(to_url_key(url))
 
     def all_documents(self) -> list[Document]:
         docs = []
@@ -83,3 +82,19 @@ class DocumentIndex:
             if doc is not None:
                 docs.append(doc)
         return docs
+
+    def ranked_documents(self, score_fn) -> list[Document]:
+        docs = []
+        url_to_score = {}
+        for document in self.all_documents():
+            score = score_fn(document)
+            if score > 0:
+                docs.append(document)
+                url_to_score[document.url] = score
+        docs = sorted(docs, key=lambda d: url_to_score[d.url], reverse = True)
+        return docs
+
+def to_url_key(url: str|bytes) -> str|bytes:
+    if isinstance(url, str) and not url.startswith('url:'):
+        return f'url:{url}'
+    return url

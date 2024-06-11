@@ -1,3 +1,4 @@
+import asyncio
 import bs4 as bs
 import grequests
 import datetime
@@ -6,6 +7,7 @@ from dataclasses import dataclass
 from document import Document
 from typing import Optional
 
+
 @dataclass
 class Post:
     url: str
@@ -13,15 +15,18 @@ class Post:
     date: Optional[datetime.date]
     link: Optional[str]
 
-    def from_url(url: str):
+    async def from_url(url: str):
         '''Create a Post from a url.
 
         `url` is downloaded and parsed.
         '''
+        # Throttle requests to not overload hackernews servers and
+        # avoid ban.
+        await asyncio.sleep(1)
         response = grequests.map([grequests.get(url)])[0]
         if response.status_code != 200:
-            raise Exception(f'Failed to fetch {url}. Status {response.status_code}')
-        print(f'fuck {response}')
+            raise Exception(f'Failed to fetch {url}. Status {
+                            response.status_code}')
         return Post.from_content(url, response.content)
 
     def from_content(url: str, content: str):
@@ -38,14 +43,14 @@ class Post:
         age_elem = content.find('span', {'class': 'age'})
         date = None
         if age_elem is not None:
-            date = datetime.datetime.strptime(age_elem.attrs['title'], "%Y-%m-%dT%H:%M:%S").date()
+            date = datetime.datetime.strptime(
+                age_elem.attrs['title'], "%Y-%m-%dT%H:%M:%S").date()
 
         post = Post(
             url=url,
             title=title,
             date=date,
             link=link)
-        print(f'{post}\n{content}\n--------------------------------------------------------------------------------')
         return post
 
     def to_document(self) -> Document:
@@ -57,7 +62,7 @@ class Post:
                         date=date)
 
 
-def top_stories(date: Optional[datetime.date]) -> list[str]:
+def top_stories(date: Optional[datetime.date] = None) -> list[str]:
     '''
     Returns a url list of the top stories on Hacker News.
     '''
