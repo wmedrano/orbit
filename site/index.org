@@ -13,7 +13,7 @@
   pip install beautifulsoup4 grequests dataclasses-json
 
   # ML
-  pip install numpy
+  pip install sentence-transformers
 
   # Database dependencies.
   pip install redis[hiredis]

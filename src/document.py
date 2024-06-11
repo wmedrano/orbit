@@ -12,6 +12,7 @@ class Document:
     title: str = ''
     date: str = ''
     terms: list[str] = field(default_factory = lambda: [])
+    title_embedding: list[float] = field(default_factory = lambda: [])
 
     def title_has_term(self, term: str) -> bool:
         return term in title

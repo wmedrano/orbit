@@ -7,6 +7,7 @@ import urllib.parse
 
 from quart import Quart, request
 from document import DocumentIndex
+from indexer import index_document
 
 app = Quart(__name__)
 all_documents = DocumentIndex(redis_port=6379)
@@ -91,13 +92,10 @@ async def scrape():
 
 @app.route('/reindex', methods=['POST'])
 async def reindex():
-    def index_document(document: document.Document):
-        document.terms = list(set(document.title.lower().strip().split()))
-        return document
     all_documents.apply_document_update(index_document)
     return f'''
 <p>Reindex complete.</p>
-<a href="./">Home</a>
+<a href="/">Home</a>
 '''
 
 
