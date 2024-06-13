@@ -5,14 +5,15 @@ from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from typing import Optional
 
+
 @dataclass_json
 @dataclass
 class Document:
     url: str
     title: str = ''
     date: str = ''
-    terms: list[str] = field(default_factory = lambda: [])
-    title_embedding: list[float] = field(default_factory = lambda: [])
+    terms: list[str] = field(default_factory=lambda: [])
+    title_embedding: list[float] = field(default_factory=lambda: [])
 
     def title_has_term(self, term: str) -> bool:
         return term in title
@@ -22,6 +23,7 @@ class Document:
             if self.title_has_term(term):
                 return True
         return False
+
 
 class DocumentIndex:
     def __init__(self, redis_port: int):
@@ -51,28 +53,32 @@ class DocumentIndex:
         values = document.to_json()
         self.redis.set(key, values)
 
-    def apply_document_update(self, update_fn):
+    def apply_document_update(self, update_fn) -> int:
         urls = self.all_urls()
+        documents_indexed = 0
         for document_key in urls:
             document_before = self.url_to_document(document_key)
             document_before_url = document_before.url
             if document_before is None:
                 continue
+            documents_indexed = documents_indexed + 1
             document_after = update_fn(document_before)
             if document_after.url != document_before_url:
-                raise ValueError(f'URL has changed: {document_before_url} -> {document_after.url}')
+                raise ValueError(f'URL has changed: {
+                                 document_before_url} -> {document_after.url}')
             self.insert_or_update_document(document_after)
+        return documents_indexed
 
     def all_urls(self) -> list[bytes]:
         return self.redis.keys("url:*")
 
-    def url_to_document(self, url: str|bytes) -> Optional[Document]:
+    def url_to_document(self, url: str | bytes) -> Optional[Document]:
         data = self.redis.get(to_url_key(url))
         if data is None:
             return None
         return Document.from_json(data)
 
-    def delete_url(self, url: str|bytes):
+    def delete_url(self, url: str | bytes):
         k = url
         self.redis.delete(to_url_key(url))
 
@@ -89,13 +95,14 @@ class DocumentIndex:
         url_to_score = {}
         for document in self.all_documents():
             score = score_fn(document)
-            if score > 0:
+            if score >= 0.01:
                 docs.append(document)
                 url_to_score[document.url] = score
-        docs = sorted(docs, key=lambda d: url_to_score[d.url], reverse = True)
+        docs = sorted(docs, key=lambda d: url_to_score[d.url], reverse=True)
         return docs
 
-def to_url_key(url: str|bytes) -> str|bytes:
+
+def to_url_key(url: str | bytes) -> str | bytes:
     if isinstance(url, str) and not url.startswith('url:'):
         return f'url:{url}'
     return url

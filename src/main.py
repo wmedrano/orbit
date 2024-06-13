@@ -3,6 +3,7 @@ import time
 import scraper.hackernews
 import redis
 import document
+import ranking
 import urllib.parse
 
 from quart import Quart, request
@@ -13,6 +14,7 @@ app = Quart(__name__)
 all_documents = DocumentIndex(redis_port=6379)
 
 search_bar = '''
+<div><a href="/">Home</a></div>
 <h1>Search</h1>
 <form action="/search" method="get">
   <input type="text" name="q">
@@ -28,49 +30,37 @@ async def home():
 
 <h1>Links</h1>
 <form action="/scrape" method="post">
-    <button type="submit">Scrape</button>
+    <button type="submit">Scrape New Posts</button>
 </form>
 <form action="/reindex" method="post">
     <button type="reindex">Reindex</button>
 </form>
 <div><a href="/index">Index</a></div>
-<div><a href="/status">Status</a></div>
+<div><a href="/redis-status">Redis Status</a></div>
     '''
 
 
-@app.route('/status')
-async def status():
-    redis_info = all_documents.info()
-    return {'redis': redis_info}
+@app.route('/redis-status')
+async def redis_status():
+    return all_documents.info()
 
 
 @app.route('/search')
 async def search():
-    query = request.args.get('q', default='')
-    query_terms = set(query.lower().strip().split())
+    query = ranking.Query(request.args.get('q', default=''))
+    ranked_documents = query.rank_all_documents(all_documents.all_documents())
 
-    def predicate(document: document.Document) -> int:
-        matching_terms = 0
-        for term in document.terms:
-            if term in query_terms:
-                matching_terms += 1
-        return matching_terms
-
-    def document_to_html(document: document.Document) -> str:
-        return f'<div><a href="{document.url}">{document.title}</a></div>'
-    documents = all_documents.ranked_documents(predicate)
-    return f'{search_bar}{"\n".join(map(document_to_html, documents))}'
+    def document_to_html(rd: ranking.RankedDocument) -> str:
+        return f'<div><a href="{rd.document.url}">{rd.document.title}</a>{str(rd.signals)}</div>'
+    return f'{search_bar}{"\n".join(map(document_to_html, ranked_documents))}'
 
 
 @app.route('/index')
 async def index():
     item = request.args.get('item')
     if item is None:
-        return [
-            {'id': str(url),
-             'index_details': f'/index?item={urllib.parse.quote_from_bytes(url)}'}
-            for url in all_documents.all_urls()
-        ]
+        documents = all_documents.all_documents()
+        return [d.to_dict() for d in documents]
     return all_documents.url_to_document(item).to_dict()
 
 
@@ -85,23 +75,28 @@ async def scrape():
         all_documents.insert_or_update_document(document)
         added += 1
     return f'''
-<p>Scrape complete. {added} new documents scraped.</p>
+{search_bar}
+<p>Scrape complete. {added} new document(s) scraped.</p>
 <a href="./">Home</a>
 '''
 
 
 @app.route('/reindex', methods=['POST'])
 async def reindex():
-    all_documents.apply_document_update(index_document)
+    start = time.time()
+    documents_indexed = all_documents.apply_document_update(index_document)
+    end = time.time()
+    duration = end - start
     return f'''
-<p>Reindex complete.</p>
+{search_bar}
+<p>Reindex completed in {duration:.1f} seconds at a rate of {documents_indexed / duration:.1f} documents per second.</p>
 <a href="/">Home</a>
 '''
 
 
 def main():
     port = int(os.getenv('ORBIT_PORT', '8000'))
-    app.run(port=port)
+    app.run(host='0.0.0.0', port=port)
 
 
 if __name__ == '__main__':

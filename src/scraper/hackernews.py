@@ -22,7 +22,7 @@ class Post:
         '''
         # Throttle requests to not overload hackernews servers and
         # avoid ban.
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
         response = grequests.map([grequests.get(url)])[0]
         if response.status_code != 200:
             raise Exception(f'Failed to fetch {url}. Status {
